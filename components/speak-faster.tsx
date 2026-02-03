@@ -196,7 +196,7 @@ export default function SpeakFaster() {
                   correctWords: newCorrect,
                   totalAttempts: newCorrect,
                   incorrectWords: 0,
-                  accuracy: Math.round(((newCorrect / totalWords) * 100) / 2),
+                  accuracy: Math.round((newCorrect / totalWords) * 100),
                   startTime: prevStats.startTime || Date.now()
                 }
               })
@@ -618,13 +618,13 @@ export default function SpeakFaster() {
               />
               <StatCard
                 icon={CheckCircle2}
-                value={(stats.correctWords)/2}
+                value={stats.correctWords}
                 label="Correct"
                 iconColor="text-success"
               />
               <StatCard
                 icon={Gauge}
-                value={words.length - (stats.correctWords)/2}
+                value={words.length - stats.correctWords}
                 label="Remaining"
               />
               
