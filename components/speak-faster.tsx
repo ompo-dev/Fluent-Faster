@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { TextInput } from "@/components/text-input"
-import { Play, Pause, RotateCcw, Gauge, Mic, MicOff, Target, CheckCircle2, XCircle } from "lucide-react"
+import { Play, Pause, RotateCcw, Gauge, Mic, MicOff, Target, CheckCircle2, XCircle, PanelLeft } from "lucide-react"
 
 // Type declarations for Web Speech API
 interface SpeechRecognitionEvent extends Event {
@@ -123,7 +123,7 @@ interface SpeakFasterStats {
 }
 
 export default function SpeakFaster() {
-  const { mode, textSource, resetKey, activeText, setActiveText } = useApp()
+  const { mode, textSource, resetKey, activeText, setActiveText, setSidebarOpen } = useApp()
   const [text, setText] = React.useState(activeText) 
   // words is derived from text, no need for useState
   
@@ -572,11 +572,23 @@ export default function SpeakFaster() {
   if (!text || text.trim().length === 0) {
     return (
       <div className="flex h-full flex-col">
-        <header className="border-b border-border px-6 py-4">
-          <h1 className="text-xl font-semibold text-foreground">Speak Faster</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Read along with the teleprompter to improve your speaking fluency
-          </p>
+        <header className="border-b border-border px-4 py-3 md:px-6 md:py-4">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarOpen(true)}
+              className="h-8 w-8 md:hidden flex-shrink-0"
+            >
+              <PanelLeft className="h-4 w-4" />
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-lg md:text-xl font-semibold text-foreground">Speak Faster</h1>
+              <p className="mt-1 text-xs md:text-sm text-muted-foreground">
+                Read along with the teleprompter to improve your speaking fluency
+              </p>
+            </div>
+          </div>
         </header>
         <div className="flex flex-1 items-center justify-center px-6">
           <div className="w-full max-w-xl">
@@ -589,15 +601,25 @@ export default function SpeakFaster() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="border-b border-border px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-foreground">Speak Faster</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Read along with the highlighted words
-            </p>
+      <header className="border-b border-border px-4 py-3 md:px-6 md:py-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarOpen(true)}
+              className="h-8 w-8 md:hidden flex-shrink-0"
+            >
+              <PanelLeft className="h-4 w-4" />
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-lg md:text-xl font-semibold text-foreground">Speak Faster</h1>
+              <p className="mt-1 text-xs md:text-sm text-muted-foreground hidden sm:block">
+                Read along with the highlighted words
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <Button
               variant="outline"
               size="sm"
@@ -605,26 +627,26 @@ export default function SpeakFaster() {
               className="gap-2 bg-transparent"
             >
               <RotateCcw className="h-4 w-4" />
-              Reset
+              <span className="hidden sm:inline">Reset</span>
             </Button>
           </div>
         </div>
       </header>
 
       {/* Speed Controls */}
-      <div className="border-b border-border bg-secondary/30 px-6 py-3">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="border-b border-border bg-secondary/30 px-4 py-3 md:px-6">
+        <div className="flex flex-wrap items-center gap-3 md:gap-6">
+          <div className="flex items-center gap-2 text-xs md:text-sm text-muted-foreground">
             <Gauge className="h-4 w-4" />
-            <span>Speed</span>
+            <span className="hidden sm:inline">Speed</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 md:gap-2">
             {SPEEDS.map((s) => (
               <button
                 key={s.value}
                 onClick={() => setSpeed(s.value)}
                 className={cn(
-                  "rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150",
+                  "rounded-md px-2 py-1 md:px-3 md:py-1.5 text-xs md:text-sm font-medium transition-colors duration-150",
                   speed === s.value
                     ? "bg-foreground text-background"
                     : "text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -634,9 +656,9 @@ export default function SpeakFaster() {
               </button>
             ))}
           </div>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3 w-full sm:w-auto sm:ml-auto">
             {/* Microphone Selector */}
-            <div className="relative" ref={micDropdownRef}>
+            <div className="relative flex-1 sm:flex-initial" ref={micDropdownRef}>
               <Button
                 variant="outline" 
                 size="sm"
@@ -648,21 +670,23 @@ export default function SpeakFaster() {
                   setShowMicDropdown(!showMicDropdown)
                 }}
                 className={cn(
-                  "gap-2 bg-transparent",
+                  "gap-2 bg-transparent w-full sm:w-auto text-xs md:text-sm",
                   micEnabled 
                     ? "text-blue-500 hover:text-blue-600 dark:text-blue-400" 
                     : "text-muted-foreground"
                 )}
               >
-                 <Mic className={cn("h-4 w-4", micEnabled && "fill-current")} />
-                 {micEnabled && selectedDeviceId 
-                   ? (audioDevices.find(d => d.deviceId === selectedDeviceId)?.label || "Microfone") 
-                   : "Selecionar Microfone"}
+                 <Mic className={cn("h-4 w-4 flex-shrink-0", micEnabled && "fill-current")} />
+                 <span className="truncate">
+                   {micEnabled && selectedDeviceId 
+                     ? (audioDevices.find(d => d.deviceId === selectedDeviceId)?.label || "Microfone") 
+                     : "Selecionar Microfone"}
+                 </span>
               </Button>
 
               {/* Dropdown Menu */}
               {showMicDropdown && (
-                <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-lg border border-border bg-background shadow-lg">
+                <div className="absolute right-0 top-full z-50 mt-2 w-full max-w-[calc(100vw-2rem)] sm:w-80 rounded-lg border border-border bg-background shadow-lg">
                   <div className="p-2">
                     <div className="mb-2 px-2 py-1 text-xs font-semibold text-muted-foreground">
                       Microfones Disponíveis
@@ -741,19 +765,19 @@ export default function SpeakFaster() {
             {/* Play/Pause/Reset Controls */}
               <>
                 {isFinished ? (
-                  <Button onClick={handleReset} size="sm" className="gap-2">
+                  <Button onClick={handleReset} size="sm" className="gap-2 flex-shrink-0">
                     <RotateCcw className="h-4 w-4" />
-                    Reset
+                    <span className="hidden sm:inline">Reset</span>
                   </Button>
                 ) : isPlaying ? (
-                  <Button onClick={handlePause} size="sm" className="gap-2">
+                  <Button onClick={handlePause} size="sm" className="gap-2 flex-shrink-0">
                     <Pause className="h-4 w-4" />
-                    Pause
+                    <span className="hidden sm:inline">Pause</span>
                   </Button>
                 ) : (
-                  <Button onClick={handleStart} size="sm" className="gap-2">
+                  <Button onClick={handleStart} size="sm" className="gap-2 flex-shrink-0">
                     <Play className="h-4 w-4" />
-                    Start
+                    <span className="hidden sm:inline">Start</span>
                   </Button>
                 )}
               </>
@@ -765,13 +789,13 @@ export default function SpeakFaster() {
       <div className="relative flex-1 overflow-hidden">
         <div
           ref={containerRef}
-          className="h-full overflow-hidden px-6 py-12"
+          className="h-full overflow-hidden px-4 py-8 md:px-6 md:py-12"
         >
           <div
             className="mx-auto max-w-2xl transition-transform duration-300 ease-out"
             style={{ transform: `translateY(-${scrollPosition}px)` }}
           >
-            <p className="text-xl leading-[2] tracking-wide">
+            <p className="text-base md:text-lg lg:text-xl leading-[2] tracking-wide">
               {words.map((word, index) => {
                 const wordStatus = wordStatuses.get(index)
                 const isCurrent = index === currentWordIndex
@@ -814,33 +838,33 @@ export default function SpeakFaster() {
       </div>
 
       {/* Metrics Footer */}
-      <footer className="border-t border-border bg-secondary/30 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-8">
+      <footer className="border-t border-border bg-secondary/30 px-4 py-3 md:px-6 md:py-4">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-3 md:gap-0">
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 md:gap-8">
             {/* Accuracy */}
             <div className="flex items-center gap-2">
               <Target className="h-4 w-4 text-accent" />
-              <span className="text-2xl font-semibold text-accent">{stats.accuracy}%</span>
-              <span className="text-sm text-muted-foreground">Accuracy</span>
+              <span className="text-xl md:text-2xl font-semibold text-accent">{stats.accuracy}%</span>
+              <span className="text-xs md:text-sm text-muted-foreground">Accuracy</span>
             </div>
             
             {/* Correct Words */}
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-success" />
-              <span className="text-lg font-semibold text-foreground">{(stats.correctWords)/2}</span>
-              <span className="text-sm text-muted-foreground">Correct</span>
+              <span className="text-base md:text-lg font-semibold text-foreground">{(stats.correctWords)/2}</span>
+              <span className="text-xs md:text-sm text-muted-foreground">Correct</span>
             </div>
             
             {/* Remaining Words */}
             <div className="flex items-center gap-2">
               <Gauge className="h-4 w-4 text-muted-foreground" />
-              <span className="text-lg font-semibold text-foreground">{words.length - (stats.correctWords)/2}</span>
-              <span className="text-sm text-muted-foreground">Remaining</span>
+              <span className="text-base md:text-lg font-semibold text-foreground">{words.length - (stats.correctWords)/2}</span>
+              <span className="text-xs md:text-sm text-muted-foreground">Remaining</span>
             </div>
             
             {/* Last spoken word when mic is active */}
             {micEnabled && lastSpokenWord && (
-              <div className="ml-4 rounded-md bg-accent/20 px-3 py-1.5 text-sm">
+              <div className="w-full md:w-auto md:ml-4 rounded-md bg-accent/20 px-3 py-1.5 text-xs md:text-sm text-center md:text-left">
                 <span className="text-muted-foreground">Heard: </span>
                 <span className="font-medium text-accent">"{lastSpokenWord}"</span>
               </div>
@@ -849,10 +873,10 @@ export default function SpeakFaster() {
           
           {/* Progress indicator */}
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">
+            <span className="text-xs md:text-sm text-muted-foreground">
               {currentWordIndex} / {words.length} words
             </span>
-            <div className="h-1.5 w-32 overflow-hidden rounded-full bg-secondary">
+            <div className="h-1.5 w-24 md:w-32 overflow-hidden rounded-full bg-secondary">
               <div
                 className="h-full bg-accent transition-all duration-150"
                 style={{ width: `${(currentWordIndex / words.length) * 100}%` }}

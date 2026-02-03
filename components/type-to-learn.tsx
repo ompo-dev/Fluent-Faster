@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 import { useApp } from "@/lib/app-context"
 import { Button } from "@/components/ui/button"
 import { TextInput } from "@/components/text-input"
-import { RotateCcw, Target, Gauge, Clock, CheckCircle2 } from "lucide-react"
+import { RotateCcw, Target, Gauge, Clock, CheckCircle2, PanelLeft } from "lucide-react"
 
 interface TypingStats {
   wpm: number
@@ -17,7 +17,7 @@ interface TypingStats {
 }
 
 export function TypeToLearn() {
-  const { textSource, resetKey, activeText, setActiveText } = useApp()
+  const { textSource, resetKey, activeText, setActiveText, setSidebarOpen } = useApp()
   const [text, setText] = React.useState(activeText)
   const [typedText, setTypedText] = React.useState("")
   const [isStarted, setIsStarted] = React.useState(false)
@@ -170,13 +170,25 @@ export function TypeToLearn() {
   if (!text) {
     return (
       <div className="flex h-full flex-col">
-        <header className="border-b border-border px-6 py-4">
-          <h1 className="text-xl font-semibold text-foreground">Type to Learn</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Improve your typing speed and accuracy with English texts
-          </p>
+        <header className="border-b border-border px-4 py-3 md:px-6 md:py-4">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarOpen(true)}
+              className="h-8 w-8 md:hidden flex-shrink-0"
+            >
+              <PanelLeft className="h-4 w-4" />
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-lg md:text-xl font-semibold text-foreground">Type to Learn</h1>
+              <p className="mt-1 text-xs md:text-sm text-muted-foreground">
+                Improve your typing speed and accuracy with English texts
+              </p>
+            </div>
+          </div>
         </header>
-        <div className="flex flex-1 items-center justify-center px-6">
+        <div className="flex flex-1 items-center justify-center px-4 md:px-6">
           <div className="w-full max-w-xl">
             <TextInput onTextReady={handleTextReady} />
           </div>
@@ -201,18 +213,18 @@ export function TypeToLearn() {
           </div>
         </header>
 
-        <div className="flex flex-1 items-center justify-center px-6">
-          <div className="w-full max-w-lg space-y-8 text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
-              <CheckCircle2 className="h-8 w-8 text-success" />
+        <div className="flex flex-1 items-center justify-center px-4 md:px-6">
+          <div className="w-full max-w-lg space-y-6 md:space-y-8 text-center">
+            <div className="mx-auto flex h-12 w-12 md:h-16 md:w-16 items-center justify-center rounded-full bg-success/10">
+              <CheckCircle2 className="h-6 w-6 md:h-8 md:w-8 text-success" />
             </div>
             
             <div>
-              <h2 className="text-2xl font-semibold text-foreground">Well Done!</h2>
-              <p className="mt-2 text-muted-foreground">Here are your results</p>
+              <h2 className="text-xl md:text-2xl font-semibold text-foreground">Well Done!</h2>
+              <p className="mt-2 text-sm md:text-base text-muted-foreground">Here are your results</p>
             </div>
 
-            <div className="grid grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
               <div className="rounded-lg border border-border bg-card p-6">
                 <div className="text-3xl font-bold text-accent">{stats.wpm}</div>
                 <div className="mt-1 text-sm text-muted-foreground">WPM</div>
@@ -227,7 +239,7 @@ export function TypeToLearn() {
               </div>
             </div>
 
-            <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs md:text-sm text-muted-foreground">
               <span>{stats.correctChars} correct</span>
               <span className="h-1 w-1 rounded-full bg-border" />
               <span>{stats.errors} errors</span>
@@ -247,24 +259,34 @@ export function TypeToLearn() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="border-b border-border px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-foreground">Type to Learn</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {isStarted ? "Keep typing..." : "Click on the text and start typing"}
-            </p>
+      <header className="border-b border-border px-4 py-3 md:px-6 md:py-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarOpen(true)}
+              className="h-8 w-8 md:hidden flex-shrink-0"
+            >
+              <PanelLeft className="h-4 w-4" />
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-lg md:text-xl font-semibold text-foreground">Type to Learn</h1>
+              <p className="mt-1 text-xs md:text-sm text-muted-foreground">
+                {isStarted ? "Keep typing..." : "Click on the text and start typing"}
+              </p>
+            </div>
           </div>
-          <Button variant="outline" size="sm" onClick={handleReset} className="gap-2 bg-transparent">
+          <Button variant="outline" size="sm" onClick={handleReset} className="gap-2 bg-transparent flex-shrink-0">
             <RotateCcw className="h-4 w-4" />
-            Reset
+            <span className="hidden sm:inline">Reset</span>
           </Button>
         </div>
       </header>
 
       {/* Typing Area */}
       <div
-        className="flex flex-1 cursor-text items-center justify-center px-6 py-12"
+        className="flex flex-1 cursor-text items-center justify-center px-4 py-8 md:px-6 md:py-12"
         onClick={handleContainerClick}
       >
         <div className="relative w-full max-w-2xl overflow-hidden">
@@ -284,7 +306,7 @@ export function TypeToLearn() {
           />
 
           {/* Display text */}
-          <p className="text-xl leading-[2] tracking-wide break-words" style={{ wordBreak: "break-word", overflowWrap: "break-word" }}>
+          <p className="text-base md:text-lg lg:text-xl leading-[2] tracking-wide break-words" style={{ wordBreak: "break-word", overflowWrap: "break-word" }}>
             {characters.map((char, index) => {
               const isTyped = index < typedText.length
               const isCorrect = isTyped && typedText[index] === char
@@ -325,32 +347,32 @@ export function TypeToLearn() {
       </div>
 
       {/* Stats Footer */}
-      <footer className="border-t border-border bg-secondary/30 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-8">
+      <footer className="border-t border-border bg-secondary/30 px-4 py-3 md:px-6 md:py-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 md:gap-0">
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 md:gap-8">
             <div className="flex items-center gap-2">
               <Gauge className="h-4 w-4 text-accent" />
-              <span className="text-2xl font-semibold text-accent">{stats.wpm}</span>
-              <span className="text-sm text-muted-foreground">WPM</span>
+              <span className="text-xl md:text-2xl font-semibold text-accent">{stats.wpm}</span>
+              <span className="text-xs md:text-sm text-muted-foreground">WPM</span>
             </div>
             <div className="flex items-center gap-2">
               <Target className="h-4 w-4 text-muted-foreground" />
-              <span className="text-2xl font-semibold text-foreground">{stats.accuracy}%</span>
-              <span className="text-sm text-muted-foreground">Accuracy</span>
+              <span className="text-xl md:text-2xl font-semibold text-foreground">{stats.accuracy}%</span>
+              <span className="text-xs md:text-sm text-muted-foreground">Accuracy</span>
             </div>
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-muted-foreground" />
-              <span className="text-2xl font-semibold text-foreground">
+              <span className="text-xl md:text-2xl font-semibold text-foreground">
                 {formatTime(stats.elapsedTime)}
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">
+            <span className="text-xs md:text-sm text-muted-foreground">
               {typedText.length} / {text.length}
             </span>
-            <div className="h-1.5 w-32 overflow-hidden rounded-full bg-secondary">
+            <div className="h-1.5 w-24 md:w-32 overflow-hidden rounded-full bg-secondary">
               <div
                 className="h-full bg-accent transition-all duration-150"
                 style={{ width: `${(typedText.length / text.length) * 100}%` }}

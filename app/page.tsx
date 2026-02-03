@@ -13,7 +13,7 @@ function AppContent() {
   return (
     <div className="flex h-screen bg-background">
       <AppSidebar />
-      <main className="flex-1 overflow-hidden transition-all duration-200">
+      <main className="flex-1 overflow-hidden transition-all duration-200 md:ml-0">
         {mode === "speak-faster" && <SpeakFaster />}
         {mode === "type-to-learn" && <TypeToLearn />}
       </main>
