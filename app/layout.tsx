@@ -1,7 +1,9 @@
-import React from "react"
+import React, { Suspense } from "react"
 import type { Metadata, Viewport } from 'next'
 import { Inter, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { ErrorBoundary } from '@/components/organisms/error-boundary'
+import { PWAUpdateBanner } from '@/components/organisms/pwa/pwa-update-banner'
 import './globals.css'
 
 const _inter = Inter({ subsets: ["latin"] });
@@ -10,6 +12,7 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: 'FluentFaster - Speak & Type English',
   description: 'Master English fluency through speed reading and typing practice. Improve your speaking and writing skills',
+  manifest: '/manifest.json',
   icons: {
     icon: [
       {
@@ -27,6 +30,11 @@ export const metadata: Metadata = {
     ],
     apple: '/apple-icon.png',
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'FluentFaster',
+  },
 }
 
 export const viewport: Viewport = {
@@ -36,6 +44,8 @@ export const viewport: Viewport = {
   ],
   width: 'device-width',
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 }
 
 export default function RootLayout({
@@ -46,8 +56,13 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="font-sans antialiased">
-        {children}
-        <Analytics />
+        <ErrorBoundary>
+          {children}
+          <Suspense fallback={null}>
+            <PWAUpdateBanner />
+          </Suspense>
+          <Analytics />
+        </ErrorBoundary>
       </body>
     </html>
   )

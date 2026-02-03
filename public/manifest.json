@@ -1,0 +1,32 @@
+{
+  "name": "FluentFaster",
+  "short_name": "FluentFaster",
+  "description": "Master English fluency through speed reading and typing practice",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#000000",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": [
+    "education",
+    "productivity"
+  ],
+  "lang": "en-US",
+  "dir": "ltr",
+  "version": "1.0.0"
+}
