@@ -8,9 +8,8 @@ const _inter = Inter({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'FluentSpeed - Speak & Type English',
-  description: 'Master English fluency through speed reading and typing practice. Improve your speaking and writing skills with our Notion-inspired learning app.',
-  generator: 'v0.app',
+  title: 'FluentFaster - Speak & Type English',
+  description: 'Master English fluency through speed reading and typing practice. Improve your speaking and writing skills',
   icons: {
     icon: [
       {

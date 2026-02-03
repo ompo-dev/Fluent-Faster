@@ -82,7 +82,7 @@ export function AppSidebar() {
           <div className="flex h-7 w-7 items-center justify-center rounded-md bg-accent">
             <Zap className="h-4 w-4 text-accent-foreground" />
           </div>
-          <span className="text-base font-semibold text-sidebar-foreground">FluentSpeed</span>
+          <span className="text-base font-semibold text-sidebar-foreground">FluentFaster</span>
         </div>
         <Button
           variant="ghost"

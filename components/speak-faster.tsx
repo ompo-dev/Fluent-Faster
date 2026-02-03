@@ -218,6 +218,7 @@ export default function SpeakFaster() {
            normalizedTarget.startsWith(normalizedSpoken.slice(0, 3)))
         
         if (isMatch) {
+          console.log(`✨ Match! Spoken: "${spoken}" matches Word[${i}]: "${words[i]}"`)
           // Only process if this word hasn't been marked yet
           setWordStatuses(prev => {
             const newMap = new Map(prev)
@@ -240,7 +241,7 @@ export default function SpeakFaster() {
                   correctWords: newCorrect,
                   totalAttempts: newCorrect,
                   incorrectWords: 0,
-                  accuracy: Math.round(((newCorrect / totalWords)*100)/2),
+                  accuracy: Math.round(((newCorrect / totalWords) * 100) / 2),
                   startTime: prevStats.startTime || Date.now()
                 }
               })
@@ -350,12 +351,9 @@ export default function SpeakFaster() {
           
           console.log(`🎤 Transcript: "${transcript}" | Confiança: ${(confidence * 100).toFixed(1)}% | Final: ${isFinal}`)
           
-          // ⚠️ IMPORTANTE: Só processar resultados FINAIS para evitar contar interim como erros
-          if (isFinal) {
-            console.log(`🗣️ Reconhecido (FINAL): "${transcript}"`)
-            // Usar ref para ter sempre a versão mais recente
-            checkSpokenWordRef.current(transcript)
-          }
+          // Debug para confirmar versão nova
+          console.log(`🚀 LÓGICA TEMPO REAL ATIVA: "${transcript}"`)
+          checkSpokenWordRef.current(transcript)
         }
 
         recognition.onerror = (event: any) => {
@@ -439,12 +437,13 @@ export default function SpeakFaster() {
     }
   }, [])
 
-  // Start/stop listening based on micEnabled
+  // Start/stop listening based on micEnabled AND isPlaying
   React.useEffect(() => {
     const recognition = recognitionRef.current
     if (!recognition) return
 
-    if (micEnabled && !isListening) {
+    // Only start if Mic is enabled (selected) AND Playing (Start button pressed)
+    if (micEnabled && isPlaying && !isListening) {
       console.log("🎙️ Ativando microfone...")
       
       try {
@@ -459,23 +458,9 @@ export default function SpeakFaster() {
           console.error("  Idioma:", navigator.language)
           console.error("  Online:", navigator.onLine)
           
-          // Verificar permissões
-          if (navigator.permissions) {
-            navigator.permissions.query({ name: 'microphone' as PermissionName })
-              .then(result => {
-                console.error("  Permissão de microfone:", result.state)
-              })
-              .catch(e => console.error("  Erro ao verificar permissão:", e))
-          }
-          
-          console.error("\n🔍 Possíveis causas:")
-          console.error("  1. Você está usando Firefox? (não suportado)")
-          console.error("  2. Microfone está sendo usado por outro app?")
-          console.error("  3. Permissão foi negada silenciosamente?")
-          console.error("  4. Conexão HTTPS necessária?")
-          
           setIsListening(false)
-          setMicEnabled(false)
+          // Don't disable micEnabled here, just stop playing
+          setIsPlaying(false)
         }, 2000)
         
         // Salvar timeout para limpar depois
@@ -488,7 +473,7 @@ export default function SpeakFaster() {
         
         recognition.start()
         setIsListening(true)
-        setIsPlaying(false)
+        // setIsPlaying(false) // REMOVED: We want isPlaying to stay true
         
       } catch (error: any) {
         if (error.message?.includes('already started')) {
@@ -496,11 +481,12 @@ export default function SpeakFaster() {
           setIsListening(true)
         } else {
           console.error("❌ Erro ao iniciar:", error.name, error.message)
-          setMicEnabled(false)
+          setIsPlaying(false)
         }
       }
       
-    } else if (!micEnabled && isListening) {
+    } else if ((!micEnabled || !isPlaying) && isListening) {
+      // Stop if Mic disabled OR Paused
       console.log("🔇 Desativando microfone...")
       
       // Limpar timeout de restart
@@ -516,19 +502,22 @@ export default function SpeakFaster() {
       }
       setIsListening(false)
     }
-  }, [micEnabled, isListening])
+  }, [micEnabled, isPlaying, isListening]) // Added isPlaying dependency
 
   // Use setTimeout for variable word timing
   React.useEffect(() => {
-    if (isPlaying && words.length > 0 && currentWordIndex < words.length - 1) {
+    // Only run auto-read if NOT using microphone
+    // Change: Allow running through the last word (currentWordIndex < words.length)
+    if (isPlaying && !micEnabled && words.length > 0 && currentWordIndex < words.length) {
       const currentWord = words[currentWordIndex]
       const duration = getWordDuration(currentWord, baseInterval) / speed
       
       intervalRef.current = setTimeout(() => {
         setCurrentWordIndex((prev) => {
+          // If we just finished the last word
           if (prev >= words.length - 1) {
             setIsPlaying(false)
-            return prev
+            return words.length // Move index past the last word to indicate completion
           }
           return prev + 1
         })
@@ -540,18 +529,21 @@ export default function SpeakFaster() {
         clearTimeout(intervalRef.current)
       }
     }
-  }, [isPlaying, speed, words, currentWordIndex])
+  }, [isPlaying, speed, words, currentWordIndex, micEnabled])
 
   React.useEffect(() => {
     if (containerRef.current && words.length > 0) {
       const wordElements = containerRef.current.querySelectorAll('[data-word]')
-      const currentElement = wordElements[currentWordIndex] as HTMLElement
-      if (currentElement) {
-        const containerHeight = containerRef.current.clientHeight
-        const elementTop = currentElement.offsetTop
-        const elementHeight = currentElement.offsetHeight
-        const targetScroll = elementTop - containerHeight / 2 + elementHeight / 2
-        setScrollPosition(Math.max(0, targetScroll))
+      // Check if element exists (handling the isFinished state where verify index is out of bounds)
+      if (currentWordIndex < wordElements.length) {
+          const currentElement = wordElements[currentWordIndex] as HTMLElement
+          if (currentElement) {
+            const containerHeight = containerRef.current.clientHeight
+            const elementTop = currentElement.offsetTop
+            const elementHeight = currentElement.offsetHeight
+            const targetScroll = elementTop - containerHeight / 2 + elementHeight / 2
+            setScrollPosition(Math.max(0, targetScroll))
+          }
       }
     }
   }, [currentWordIndex, words.length])
@@ -560,7 +552,8 @@ export default function SpeakFaster() {
   const handlePause = () => setIsPlaying(false)
   const handleReset = () => {
     setIsPlaying(false)
-    setMicEnabled(false)
+    // Don't reset micEnabled on reset, keep the selection
+    // setMicEnabled(false) 
     setCurrentWordIndex(0)
     setScrollPosition(0)
     setLastSpokenWord("")
@@ -574,6 +567,7 @@ export default function SpeakFaster() {
     })
   }
 
+  const isFinished = words.length > 0 && currentWordIndex >= words.length
 
   if (!text || text.trim().length === 0) {
     return (
@@ -644,7 +638,7 @@ export default function SpeakFaster() {
             {/* Microphone Selector */}
             <div className="relative" ref={micDropdownRef}>
               <Button
-                variant={micEnabled ? "default" : "outline"}
+                variant="outline" 
                 size="sm"
                 onClick={() => {
                   if (!micSupported) {
@@ -654,26 +648,16 @@ export default function SpeakFaster() {
                   setShowMicDropdown(!showMicDropdown)
                 }}
                 className={cn(
-                  "gap-2",
-                  micEnabled && "bg-accent text-accent-foreground",
-                  !micEnabled && "bg-transparent"
+                  "gap-2 bg-transparent",
+                  micEnabled 
+                    ? "text-blue-500 hover:text-blue-600 dark:text-blue-400" 
+                    : "text-muted-foreground"
                 )}
               >
-                {micEnabled ? (
-                  <>
-                    <Mic className="h-4 w-4" />
-                    <span className="relative flex h-2 w-2">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-foreground opacity-75" />
-                      <span className="relative inline-flex h-2 w-2 rounded-full bg-accent-foreground" />
-                    </span>
-                    Listening
-                  </>
-                ) : (
-                  <>
-                    <Mic className="h-4 w-4" />
-                    Selecionar Microfone
-                  </>
-                )}
+                 <Mic className={cn("h-4 w-4", micEnabled && "fill-current")} />
+                 {micEnabled && selectedDeviceId 
+                   ? (audioDevices.find(d => d.deviceId === selectedDeviceId)?.label || "Microfone") 
+                   : "Selecionar Microfone"}
               </Button>
 
               {/* Dropdown Menu */}
@@ -702,6 +686,7 @@ export default function SpeakFaster() {
                                 setSelectedDeviceId(device.deviceId)
                                 setMicEnabled(true)
                                 setShowMicDropdown(false)
+                                // DO NOT Auto start here
                               }}
                               className={cn(
                                 "w-full rounded-md px-3 py-2 text-left transition-colors",
@@ -737,6 +722,7 @@ export default function SpeakFaster() {
                           onClick={() => {
                             setMicEnabled(false)
                             setShowMicDropdown(false)
+                            setIsPlaying(false) // Stop if disabling mic while running
                           }}
                           className="w-full rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                         >
@@ -752,10 +738,14 @@ export default function SpeakFaster() {
               )}
             </div>
             
-            {/* Auto-play controls (disabled when mic is active) */}
-            {!micEnabled && (
+            {/* Play/Pause/Reset Controls */}
               <>
-                {isPlaying ? (
+                {isFinished ? (
+                  <Button onClick={handleReset} size="sm" className="gap-2">
+                    <RotateCcw className="h-4 w-4" />
+                    Reset
+                  </Button>
+                ) : isPlaying ? (
                   <Button onClick={handlePause} size="sm" className="gap-2">
                     <Pause className="h-4 w-4" />
                     Pause
@@ -767,7 +757,6 @@ export default function SpeakFaster() {
                   </Button>
                 )}
               </>
-            )}
           </div>
         </div>
       </div>
@@ -793,13 +782,13 @@ export default function SpeakFaster() {
                     key={index}
                     data-word
                     className={cn(
-                      "inline-block transition-all duration-200 relative",
+                      "transition-colors duration-100 relative",
                       // Current word (being spoken now)
-                      isCurrent && "scale-110 font-bold text-accent",
-                      // Correct word (green)
-                      wordStatus?.isCorrect === true && "text-success font-medium",
+                      isCurrent && "font-bold text-accent",
+                      // Correct word (green background flash)
+                      wordStatus?.isCorrect === true && "text-green-600 font-bold animate-success-flash",
                       // Incorrect word (red with background)
-                      wordStatus?.isCorrect === false && "text-destructive font-medium bg-destructive/10 px-1 rounded",
+                      wordStatus?.isCorrect === false && "text-destructive font-medium bg-destructive/10",
                       // Past words without status
                       !wordStatus && isPast && "text-muted-foreground",
                       // Future words
