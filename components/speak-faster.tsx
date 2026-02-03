@@ -1,11 +1,18 @@
 "use client"
 
 import * as React from "react"
-import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Slider } from "@/components/ui/slider"
-import { TextInput } from "@/components/text-input"
-import { Play, Pause, RotateCcw, Gauge, Mic, MicOff, Target, CheckCircle2, XCircle, PanelLeft } from "lucide-react"
+import { RotateCcw, Target, CheckCircle2, Gauge, PanelLeft } from "lucide-react"
+import { useApp, getRandomText } from "@/lib/app-context"
+import { PageHeader } from "@/components/atomic/molecules/PageHeader"
+import { PracticeLayout } from "@/components/atomic/templates/PracticeLayout"
+import { EmptyStateLayout } from "@/components/atomic/templates/EmptyStateLayout"
+import { TeleprompterArea } from "@/components/atomic/organisms/TeleprompterArea"
+import { ControlPanel } from "@/components/atomic/organisms/ControlPanel"
+import { TextInputSelector } from "@/components/atomic/organisms/TextInputSelector"
+import { Text } from "@/components/atomic/atoms/Text"
+import { StatCard } from "@/components/atomic/molecules/StatCard"
+import { ProgressIndicator } from "@/components/atomic/molecules/ProgressIndicator"
 
 // Type declarations for Web Speech API
 interface SpeechRecognitionEvent extends Event {
@@ -51,61 +58,6 @@ declare global {
   }
 }
 
-const SPEEDS = [
-  { value: 0.5, label: "0.5x" },
-  { value: 1, label: "1x" },
-  { value: 1.25, label: "1.25x" },
-  { value: 1.5, label: "1.5x" },
-  { value: 2, label: "2x" },
-]
-
-// Estimate syllable count for a word
-function countSyllables(word: string): number {
-  const cleaned = word.toLowerCase().replace(/[^a-z]/g, "")
-  if (cleaned.length <= 2) return 1
-  
-  // Count vowel groups as syllables
-  const vowelGroups = cleaned.match(/[aeiouy]+/g)
-  let count = vowelGroups ? vowelGroups.length : 1
-  
-  // Adjust for silent 'e' at end
-  if (cleaned.endsWith("e") && count > 1) {
-    count--
-  }
-  
-  // Adjust for common suffixes
-  if (cleaned.endsWith("le") && cleaned.length > 2 && !/[aeiouy]/.test(cleaned[cleaned.length - 3])) {
-    count++
-  }
-  
-  return Math.max(1, count)
-}
-
-// Calculate duration for a word based on complexity
-function getWordDuration(word: string, baseMs: number): number {
-  const syllables = countSyllables(word)
-  const length = word.replace(/[^a-zA-Z]/g, "").length
-  
-  // Base time per syllable (around 200ms at normal speech)
-  const syllableTime = syllables * 180
-  
-  // Add extra time for longer words (harder to pronounce)
-  const lengthBonus = Math.max(0, length - 4) * 20
-  
-  // Add time for complex letter combinations
-  const complexPatterns = /[^aeiou]{3,}|ough|tion|sion|ght|sch|tch|dge/gi
-  const complexMatches = word.match(complexPatterns)
-  const complexBonus = complexMatches ? complexMatches.length * 50 : 0
-  
-  // Minimum 200ms, scale by base multiplier
-  const duration = Math.max(200, syllableTime + lengthBonus + complexBonus)
-  
-  // Normalize around baseMs for average word
-  return (duration / 300) * baseMs
-}
-
-import { useApp } from "@/lib/app-context"
-
 interface WordStatus {
   index: number
   expected: string
@@ -122,10 +74,47 @@ interface SpeakFasterStats {
   startTime: number | null
 }
 
+// Estimate syllable count for a word
+function countSyllables(word: string): number {
+  const cleaned = word.toLowerCase().replace(/[^a-z]/g, "")
+  if (cleaned.length <= 2) return 1
+  
+  const vowelGroups = cleaned.match(/[aeiouy]+/g)
+  let count = vowelGroups ? vowelGroups.length : 1
+  
+  if (cleaned.endsWith("e") && count > 1) {
+    count--
+  }
+  
+  if (cleaned.endsWith("le") && cleaned.length > 2 && !/[aeiouy]/.test(cleaned[cleaned.length - 3])) {
+    count++
+  }
+  
+  return Math.max(1, count)
+}
+
+// Calculate duration for a word based on complexity
+function getWordDuration(word: string, baseMs: number): number {
+  const syllables = countSyllables(word)
+  const length = word.replace(/[^a-zA-Z]/g, "").length
+  
+  const syllableTime = syllables * 180
+  const lengthBonus = Math.max(0, length - 4) * 20
+  
+  const complexPatterns = /[^aeiou]{3,}|ough|tion|sion|ght|sch|tch|dge/gi
+  const complexMatches = word.match(complexPatterns)
+  const complexBonus = complexMatches ? complexMatches.length * 50 : 0
+  
+  const duration = Math.max(200, syllableTime + lengthBonus + complexBonus)
+  
+  return (duration / 300) * baseMs
+}
+
 export default function SpeakFaster() {
-  const { mode, textSource, resetKey, activeText, setActiveText, setSidebarOpen } = useApp()
-  const [text, setText] = React.useState(activeText) 
-  // words is derived from text, no need for useState
+  const { textSource, resetKey, activeText, setActiveText, setSidebarOpen, customText, setCustomText } = useApp()
+  const [text, setText] = React.useState(activeText)
+  const [uploadedText, setUploadedText] = React.useState("")
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
   
   const [isPlaying, setIsPlaying] = React.useState(false)
   const [speed, setSpeed] = React.useState(1)
@@ -137,7 +126,6 @@ export default function SpeakFaster() {
   const [lastSpokenWord, setLastSpokenWord] = React.useState("")
   const [audioDevices, setAudioDevices] = React.useState<MediaDeviceInfo[]>([])
   const [selectedDeviceId, setSelectedDeviceId] = React.useState<string>("")
-  const [showMicDropdown, setShowMicDropdown] = React.useState(false)
   const [wordStatuses, setWordStatuses] = React.useState<Map<number, WordStatus>>(new Map())
   const [stats, setStats] = React.useState<SpeakFasterStats>({
     totalAttempts: 0,
@@ -146,17 +134,15 @@ export default function SpeakFaster() {
     accuracy: 0,
     startTime: null
   })
+  
   const containerRef = React.useRef<HTMLDivElement>(null)
   const intervalRef = React.useRef<NodeJS.Timeout | null>(null)
   const recognitionRef = React.useRef<SpeechRecognition | null>(null)
-  const micDropdownRef = React.useRef<HTMLDivElement>(null)
   const restartTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
   
-  // Refs para evitar stale closures nos event handlers
   const micEnabledRef = React.useRef(micEnabled)
   const isListeningRef = React.useRef(isListening)
   
-  // Atualizar refs quando estados mudarem
   React.useEffect(() => {
     micEnabledRef.current = micEnabled
   }, [micEnabled])
@@ -167,38 +153,12 @@ export default function SpeakFaster() {
   
   const words = React.useMemo(() => text.split(/\s+/).filter(word => word.length > 0), [text])
 
-  // Track previous values to avoid resetting on mount when switching modes
-  const prevTextSourceRef = React.useRef(textSource)
-  const prevResetKeyRef = React.useRef(resetKey)
+  const baseInterval = 400
 
-  React.useEffect(() => {
-    // Only reset if textSource or resetKey ACTUALLY changed
-    if (prevTextSourceRef.current !== textSource || prevResetKeyRef.current !== resetKey) {
-      if (text) {
-        setText("")
-        setActiveText("")
-        handleReset()
-      }
-    }
-    // Update refs
-    prevTextSourceRef.current = textSource
-    prevResetKeyRef.current = resetKey
-  }, [textSource, resetKey, text, setActiveText])
-
-  const handleTextReady = (newText: string) => {
-    setText(newText)
-    setActiveText(newText)
-    handleReset()
-  }
-
-  const baseInterval = 400 // ms per word at 1x speed
-
-  // Normalize word for comparison (remove punctuation, lowercase)
   const normalizeWord = (word: string) => {
     return word.toLowerCase().replace(/[^a-z0-9]/g, "")
   }
 
-  // Check if spoken word matches current or next few words
   const checkSpokenWord = React.useCallback((transcript: string) => {
     const spokenWords = transcript.toLowerCase().split(/\s+/).filter(w => w.length > 0)
     let matchedAny = false
@@ -208,21 +168,17 @@ export default function SpeakFaster() {
       const normalizedSpoken = normalizeWord(spoken)
       if (!normalizedSpoken) continue
       
-      // Check current word and a few words ahead (allows for slight delays)
       for (let i = newWordIndex; i < Math.min(newWordIndex + 3, words.length); i++) {
         const normalizedTarget = normalizeWord(words[i])
         
-        // Check for exact match or close match (first 3+ chars for longer words)
         const isMatch = normalizedSpoken === normalizedTarget ||
           (normalizedTarget.length > 3 && normalizedSpoken.length >= 3 && 
            normalizedTarget.startsWith(normalizedSpoken.slice(0, 3)))
         
         if (isMatch) {
           console.log(`✨ Match! Spoken: "${spoken}" matches Word[${i}]: "${words[i]}"`)
-          // Only process if this word hasn't been marked yet
           setWordStatuses(prev => {
             const newMap = new Map(prev)
-            // Only add if not already processed
             if (!newMap.has(i)) {
               newMap.set(i, {
                 index: i,
@@ -232,7 +188,6 @@ export default function SpeakFaster() {
                 timestamp: Date.now()
               })
               
-              // Update stats only when adding new word
               setStats(prevStats => {
                 const newCorrect = prevStats.correctWords + 1
                 const totalWords = words.length
@@ -250,7 +205,6 @@ export default function SpeakFaster() {
           })
           
           setLastSpokenWord(spoken)
-          // Move to the next word
           newWordIndex = Math.min(i + 1, words.length)
           matchedAny = true
           break
@@ -258,7 +212,6 @@ export default function SpeakFaster() {
       }
     }
     
-    // Update current word index once at the end
     if (matchedAny) {
       setCurrentWordIndex(newWordIndex)
     }
@@ -266,7 +219,6 @@ export default function SpeakFaster() {
     return matchedAny
   }, [currentWordIndex, words])
 
-  // Use ref to always have latest checkSpokenWord
   const checkSpokenWordRef = React.useRef(checkSpokenWord)
   React.useEffect(() => {
     checkSpokenWordRef.current = checkSpokenWord
@@ -292,35 +244,20 @@ export default function SpeakFaster() {
     }
 
     getAudioDevices()
-
-    // Listen for device changes
     navigator.mediaDevices.addEventListener("devicechange", getAudioDevices)
     
     return () => {
       navigator.mediaDevices.removeEventListener("devicechange", getAudioDevices)
     }
-  }, [])
+  }, [selectedDeviceId])
 
-  // Close dropdown when clicking outside
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (micDropdownRef.current && !micDropdownRef.current.contains(event.target as Node)) {
-        setShowMicDropdown(false)
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
-
-  // Initialize speech recognition with event handlers
+  // Initialize speech recognition
   React.useEffect(() => {
     let isUnmounting = false
 
     if (typeof window !== "undefined") {
       const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition
       if (SpeechRecognitionAPI) {
-        // Safe check: Abort existing instance if any
         if (recognitionRef.current) {
            try {
              recognitionRef.current.abort()
@@ -332,7 +269,6 @@ export default function SpeakFaster() {
         recognition.interimResults = true
         recognition.lang = "en-US"
         
-        // Configurar event handlers AQUI, antes de qualquer start()
         recognition.onstart = () => {
           if (!isUnmounting) {
             console.log("✅ Speech Recognition INICIOU - ouvindo agora!")
@@ -351,7 +287,6 @@ export default function SpeakFaster() {
           
           console.log(`🎤 Transcript: "${transcript}" | Confiança: ${(confidence * 100).toFixed(1)}% | Final: ${isFinal}`)
           
-          // Debug para confirmar versão nova
           console.log(`🚀 LÓGICA TEMPO REAL ATIVA: "${transcript}"`)
           checkSpokenWordRef.current(transcript)
         }
@@ -368,7 +303,6 @@ export default function SpeakFaster() {
           } else if (event.error === 'no-speech') {
             console.log("🤫 Silêncio detectado")
           } else if (event.error === 'aborted') {
-             // Ignore aborted errors during cleanup
           } else {
             setIsListening(false)
           }
@@ -385,7 +319,6 @@ export default function SpeakFaster() {
             clearTimeout(restartTimeoutRef.current)
           }
           
-          // Usar refs para pegar valores atuais, não os da inicialização
           if (micEnabledRef.current && isListeningRef.current) {
             restartTimeoutRef.current = setTimeout(() => {
               if (isUnmounting) return
@@ -416,7 +349,6 @@ export default function SpeakFaster() {
       console.log("🧹 Cleanup: Abortando Speech Recognition...")
       
       if (recognitionRef.current) {
-        // Remove handlers to prevent zombie calls
         recognitionRef.current.onresult = null
         recognitionRef.current.onend = null
         recognitionRef.current.onerror = null
@@ -442,28 +374,18 @@ export default function SpeakFaster() {
     const recognition = recognitionRef.current
     if (!recognition) return
 
-    // Only start if Mic is enabled (selected) AND Playing (Start button pressed)
     if (micEnabled && isPlaying && !isListening) {
       console.log("🎙️ Ativando microfone...")
       
       try {
         console.log("🚀 Iniciando Speech Recognition...")
         
-        // Timeout para detectar se onstart nunca dispara
         const startTimeout = setTimeout(() => {
           console.error("❌ FALHA: onstart NÃO disparou em 2 segundos!")
-          console.error("📊 Diagnóstico:")
-          console.error("  Browser:", navigator.userAgent)
-          console.error("  Plataforma:", navigator.platform)
-          console.error("  Idioma:", navigator.language)
-          console.error("  Online:", navigator.onLine)
-          
           setIsListening(false)
-          // Don't disable micEnabled here, just stop playing
           setIsPlaying(false)
         }, 2000)
         
-        // Salvar timeout para limpar depois
         const originalOnStart = recognition.onstart
         recognition.onstart = () => {
           clearTimeout(startTimeout)
@@ -473,7 +395,6 @@ export default function SpeakFaster() {
         
         recognition.start()
         setIsListening(true)
-        // setIsPlaying(false) // REMOVED: We want isPlaying to stay true
         
       } catch (error: any) {
         if (error.message?.includes('already started')) {
@@ -486,10 +407,8 @@ export default function SpeakFaster() {
       }
       
     } else if ((!micEnabled || !isPlaying) && isListening) {
-      // Stop if Mic disabled OR Paused
       console.log("🔇 Desativando microfone...")
       
-      // Limpar timeout de restart
       if (restartTimeoutRef.current) {
         clearTimeout(restartTimeoutRef.current)
         restartTimeoutRef.current = null
@@ -502,22 +421,19 @@ export default function SpeakFaster() {
       }
       setIsListening(false)
     }
-  }, [micEnabled, isPlaying, isListening]) // Added isPlaying dependency
+  }, [micEnabled, isPlaying, isListening])
 
   // Use setTimeout for variable word timing
   React.useEffect(() => {
-    // Only run auto-read if NOT using microphone
-    // Change: Allow running through the last word (currentWordIndex < words.length)
     if (isPlaying && !micEnabled && words.length > 0 && currentWordIndex < words.length) {
       const currentWord = words[currentWordIndex]
       const duration = getWordDuration(currentWord, baseInterval) / speed
       
       intervalRef.current = setTimeout(() => {
         setCurrentWordIndex((prev) => {
-          // If we just finished the last word
           if (prev >= words.length - 1) {
             setIsPlaying(false)
-            return words.length // Move index past the last word to indicate completion
+            return words.length
           }
           return prev + 1
         })
@@ -534,7 +450,6 @@ export default function SpeakFaster() {
   React.useEffect(() => {
     if (containerRef.current && words.length > 0) {
       const wordElements = containerRef.current.querySelectorAll('[data-word]')
-      // Check if element exists (handling the isFinished state where verify index is out of bounds)
       if (currentWordIndex < wordElements.length) {
           const currentElement = wordElements[currentWordIndex] as HTMLElement
           if (currentElement) {
@@ -552,8 +467,6 @@ export default function SpeakFaster() {
   const handlePause = () => setIsPlaying(false)
   const handleReset = () => {
     setIsPlaying(false)
-    // Don't reset micEnabled on reset, keep the selection
-    // setMicEnabled(false) 
     setCurrentWordIndex(0)
     setScrollPosition(0)
     setLastSpokenWord("")
@@ -567,324 +480,166 @@ export default function SpeakFaster() {
     })
   }
 
+  const handleTextReady = (newText: string) => {
+    setText(newText)
+    setActiveText(newText)
+    handleReset()
+  }
+
+  const handleRandomText = () => {
+    const randomText = getRandomText()
+    handleTextReady(randomText)
+  }
+
+  const handleCustomTextSubmit = () => {
+    if (customText.trim()) {
+      handleTextReady(customText)
+    }
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.type === "text/plain") {
+      const text = await file.text()
+      setUploadedText(text)
+      handleTextReady(text)
+    } else if (file.type === "application/pdf") {
+      const text = await file.text()
+      setUploadedText(text)
+      handleTextReady(text)
+    }
+  }
+
+  const handleDeviceSelect = (deviceId: string) => {
+    setSelectedDeviceId(deviceId)
+    setMicEnabled(true)
+  }
+
+  const handleMicDisable = () => {
+    setMicEnabled(false)
+    setIsPlaying(false)
+  }
+
+  const prevTextSourceRef = React.useRef(textSource)
+  const prevResetKeyRef = React.useRef(resetKey)
+
+  React.useEffect(() => {
+    if (prevTextSourceRef.current !== textSource || prevResetKeyRef.current !== resetKey) {
+      if (text) {
+        setText("")
+        setActiveText("")
+        handleReset()
+      }
+    }
+    prevTextSourceRef.current = textSource
+    prevResetKeyRef.current = resetKey
+  }, [textSource, resetKey, text, setActiveText])
+
   const isFinished = words.length > 0 && currentWordIndex >= words.length
 
+  // Empty state
   if (!text || text.trim().length === 0) {
     return (
-      <div className="flex h-full flex-col">
-        <header className="border-b border-border px-4 py-3 md:px-6 md:py-4">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarOpen(true)}
-              className="h-8 w-8 md:hidden flex-shrink-0"
-            >
-              <PanelLeft className="h-4 w-4" />
-            </Button>
-            <div className="min-w-0">
-              <h1 className="text-lg md:text-xl font-semibold text-foreground">Speak Faster</h1>
-              <p className="mt-1 text-xs md:text-sm text-muted-foreground">
-                Read along with the teleprompter to improve your speaking fluency
-              </p>
-            </div>
-          </div>
-        </header>
-        <div className="flex flex-1 items-center justify-center px-6">
-          <div className="w-full max-w-xl">
-            <TextInput onTextReady={handleTextReady} />
-          </div>
-        </div>
-      </div>
+      <EmptyStateLayout
+        icon={PanelLeft}
+        title="Speak Faster"
+        subtitle="Read along with the teleprompter to improve your speaking fluency"
+        onMenuClick={() => setSidebarOpen(true)}
+      >
+        <TextInputSelector
+          textSource={textSource}
+          customText={customText}
+          onCustomTextChange={setCustomText}
+          onRandomText={handleRandomText}
+          onCustomTextSubmit={handleCustomTextSubmit}
+          onFileUpload={handleFileUpload}
+          fileInputRef={fileInputRef}
+          uploadedText={uploadedText}
+        />
+      </EmptyStateLayout>
     )
   }
 
+  // Practice screen
   return (
-    <div className="flex h-full flex-col">
-      <header className="border-b border-border px-4 py-3 md:px-6 md:py-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-3 min-w-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarOpen(true)}
-              className="h-8 w-8 md:hidden flex-shrink-0"
-            >
-              <PanelLeft className="h-4 w-4" />
-            </Button>
-            <div className="min-w-0">
-              <h1 className="text-lg md:text-xl font-semibold text-foreground">Speak Faster</h1>
-              <p className="mt-1 text-xs md:text-sm text-muted-foreground hidden sm:block">
-                Read along with the highlighted words
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleReset}
-              className="gap-2 bg-transparent"
-            >
+    <PracticeLayout
+      header={
+        <PageHeader
+          title="Speak Faster"
+          subtitle="Read along with the highlighted words"
+          onMenuClick={() => setSidebarOpen(true)}
+          actions={
+            <Button variant="outline" size="sm" onClick={handleReset} className="gap-2 bg-transparent">
               <RotateCcw className="h-4 w-4" />
               <span className="hidden sm:inline">Reset</span>
             </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* Speed Controls */}
-      <div className="border-b border-border bg-secondary/30 px-4 py-3 md:px-6">
-        <div className="flex flex-wrap items-center gap-3 md:gap-6">
-          <div className="flex items-center gap-2 text-xs md:text-sm text-muted-foreground">
-            <Gauge className="h-4 w-4" />
-            <span className="hidden sm:inline">Speed</span>
-          </div>
-          <div className="flex items-center gap-1.5 md:gap-2">
-            {SPEEDS.map((s) => (
-              <button
-                key={s.value}
-                onClick={() => setSpeed(s.value)}
-                className={cn(
-                  "rounded-md px-2 py-1 md:px-3 md:py-1.5 text-xs md:text-sm font-medium transition-colors duration-150",
-                  speed === s.value
-                    ? "bg-foreground text-background"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                )}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2 md:gap-3 w-full sm:w-auto sm:ml-auto">
-            {/* Microphone Selector */}
-            <div className="relative flex-1 sm:flex-initial" ref={micDropdownRef}>
-              <Button
-                variant="outline" 
-                size="sm"
-                onClick={() => {
-                  if (!micSupported) {
-                    alert("Speech recognition is not supported in your browser. Please use Chrome or Edge.")
-                    return
-                  }
-                  setShowMicDropdown(!showMicDropdown)
-                }}
-                className={cn(
-                  "gap-2 bg-transparent w-full sm:w-auto text-xs md:text-sm",
-                  micEnabled 
-                    ? "text-blue-500 hover:text-blue-600 dark:text-blue-400" 
-                    : "text-muted-foreground"
-                )}
-              >
-                 <Mic className={cn("h-4 w-4 flex-shrink-0", micEnabled && "fill-current")} />
-                 <span className="truncate">
-                   {micEnabled && selectedDeviceId 
-                     ? (audioDevices.find(d => d.deviceId === selectedDeviceId)?.label || "Microfone") 
-                     : "Selecionar Microfone"}
-                 </span>
-              </Button>
-
-              {/* Dropdown Menu */}
-              {showMicDropdown && (
-                <div className="absolute right-0 top-full z-50 mt-2 w-full max-w-[calc(100vw-2rem)] sm:w-80 rounded-lg border border-border bg-background shadow-lg">
-                  <div className="p-2">
-                    <div className="mb-2 px-2 py-1 text-xs font-semibold text-muted-foreground">
-                      Microfones Disponíveis
-                    </div>
-                    <div className="mb-2 rounded-md bg-blue-500/10 px-2 py-1.5 text-xs text-blue-600 dark:text-blue-400">
-                      💡 O reconhecimento de voz usa o microfone padrão do sistema
-                    </div>
-                    {audioDevices.length === 0 ? (
-                      <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                        Nenhum microfone detectado
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
-                        {audioDevices.map((device) => {
-                          const isSelected = device.deviceId === selectedDeviceId
-                          
-                          return (
-                            <button
-                              key={device.deviceId}
-                              onClick={() => {
-                                setSelectedDeviceId(device.deviceId)
-                                setMicEnabled(true)
-                                setShowMicDropdown(false)
-                                // DO NOT Auto start here
-                              }}
-                              className={cn(
-                                "w-full rounded-md px-3 py-2 text-left transition-colors",
-                                isSelected
-                                  ? "bg-accent text-accent-foreground"
-                                  : "hover:bg-secondary"
-                              )}
-                            >
-                              <div className="flex items-center gap-2">
-                                <Mic className="h-4 w-4 flex-shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <div className="truncate text-sm font-medium">
-                                    {device.label || `Microfone ${device.deviceId.slice(0, 8)}`}
-                                  </div>
-                                </div>
-                                {isSelected && (
-                                  <div className="flex-shrink-0">
-                                    <div className="h-2 w-2 rounded-full bg-green-500" />
-                                  </div>
-                                )}
-                              </div>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
-                    
-                    {/* Disable Mic Option */}
-                    {micEnabled && (
-                      <>
-                        <div className="my-2 border-t border-border" />
-                        <button
-                          onClick={() => {
-                            setMicEnabled(false)
-                            setShowMicDropdown(false)
-                            setIsPlaying(false) // Stop if disabling mic while running
-                          }}
-                          className="w-full rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                        >
-                          <div className="flex items-center gap-2">
-                            <MicOff className="h-4 w-4" />
-                            Desativar Microfone
-                          </div>
-                        </button>
-                      </>
-                    )}
-                  </div>
+          }
+        />
+      }
+      controls={
+        <ControlPanel
+          speed={speed}
+          onSpeedChange={setSpeed}
+          showMicrophone
+          micEnabled={micEnabled}
+          selectedDeviceId={selectedDeviceId}
+          audioDevices={audioDevices}
+          micSupported={micSupported}
+          onDeviceSelect={handleDeviceSelect}
+          onMicDisable={handleMicDisable}
+          isPlaying={isPlaying}
+          isFinished={isFinished}
+          onPlay={handleStart}
+          onPause={handlePause}
+          onReset={handleReset}
+        />
+      }
+      content={
+        <TeleprompterArea
+          words={words}
+          currentWordIndex={currentWordIndex}
+          wordStatuses={wordStatuses}
+          scrollPosition={scrollPosition}
+          containerRef={containerRef}
+        />
+      }
+      footer={
+        <footer className="border-t border-border bg-secondary/30 px-4 py-3 md:px-6 md:py-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-3 md:gap-0">
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 md:gap-8">
+              <StatCard
+                icon={Target}
+                value={`${stats.accuracy}%`}
+                label="Accuracy"
+                valueColor="accent"
+                iconColor="text-accent"
+              />
+              <StatCard
+                icon={CheckCircle2}
+                value={(stats.correctWords)/2}
+                label="Correct"
+                iconColor="text-success"
+              />
+              <StatCard
+                icon={Gauge}
+                value={words.length - (stats.correctWords)/2}
+                label="Remaining"
+              />
+              
+              {micEnabled && lastSpokenWord && (
+                <div className="w-full md:w-auto md:ml-4 rounded-md bg-accent/20 px-3 py-1.5 text-xs md:text-sm text-center md:text-left">
+                  <Text variant="caption" as="span">Heard: </Text>
+                  <span className="font-medium text-accent">"{lastSpokenWord}"</span>
                 </div>
               )}
             </div>
             
-            {/* Play/Pause/Reset Controls */}
-              <>
-                {isFinished ? (
-                  <Button onClick={handleReset} size="sm" className="gap-2 flex-shrink-0">
-                    <RotateCcw className="h-4 w-4" />
-                    <span className="hidden sm:inline">Reset</span>
-                  </Button>
-                ) : isPlaying ? (
-                  <Button onClick={handlePause} size="sm" className="gap-2 flex-shrink-0">
-                    <Pause className="h-4 w-4" />
-                    <span className="hidden sm:inline">Pause</span>
-                  </Button>
-                ) : (
-                  <Button onClick={handleStart} size="sm" className="gap-2 flex-shrink-0">
-                    <Play className="h-4 w-4" />
-                    <span className="hidden sm:inline">Start</span>
-                  </Button>
-                )}
-              </>
+            <ProgressIndicator current={currentWordIndex} total={words.length} />
           </div>
-        </div>
-      </div>
-
-      {/* Teleprompter Content */}
-      <div className="relative flex-1 overflow-hidden">
-        <div
-          ref={containerRef}
-          className="h-full overflow-hidden px-4 py-8 md:px-6 md:py-12"
-        >
-          <div
-            className="mx-auto max-w-2xl transition-transform duration-300 ease-out"
-            style={{ transform: `translateY(-${scrollPosition}px)` }}
-          >
-            <p className="text-base md:text-lg lg:text-xl leading-[2] tracking-wide">
-              {words.map((word, index) => {
-                const wordStatus = wordStatuses.get(index)
-                const isCurrent = index === currentWordIndex
-                const isPast = index < currentWordIndex
-                
-                return (
-                  <span
-                    key={index}
-                    data-word
-                    className={cn(
-                      "transition-colors duration-100 relative",
-                      // Current word (being spoken now)
-                      isCurrent && "font-bold text-accent",
-                      // Correct word (green background flash)
-                      wordStatus?.isCorrect === true && "text-green-600 font-bold animate-success-flash",
-                      // Incorrect word (red with background)
-                      wordStatus?.isCorrect === false && "text-destructive font-medium bg-destructive/10",
-                      // Past words without status
-                      !wordStatus && isPast && "text-muted-foreground",
-                      // Future words
-                      !wordStatus && !isPast && !isCurrent && "text-foreground"
-                    )}
-                    title={wordStatus?.isCorrect === false 
-                      ? `Expected: "${wordStatus.expected}" | Heard: "${wordStatus.recognized}"`
-                      : undefined
-                    }
-                  >
-                    {word}
-                    <span className="inline-block w-2" />
-                  </span>
-                )
-              })}
-            </p>
-          </div>
-        </div>
-
-        {/* Gradient overlays */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-background to-transparent" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background to-transparent" />
-      </div>
-
-      {/* Metrics Footer */}
-      <footer className="border-t border-border bg-secondary/30 px-4 py-3 md:px-6 md:py-4">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-3 md:gap-0">
-          <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 md:gap-8">
-            {/* Accuracy */}
-            <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-accent" />
-              <span className="text-xl md:text-2xl font-semibold text-accent">{stats.accuracy}%</span>
-              <span className="text-xs md:text-sm text-muted-foreground">Accuracy</span>
-            </div>
-            
-            {/* Correct Words */}
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-success" />
-              <span className="text-base md:text-lg font-semibold text-foreground">{(stats.correctWords)/2}</span>
-              <span className="text-xs md:text-sm text-muted-foreground">Correct</span>
-            </div>
-            
-            {/* Remaining Words */}
-            <div className="flex items-center gap-2">
-              <Gauge className="h-4 w-4 text-muted-foreground" />
-              <span className="text-base md:text-lg font-semibold text-foreground">{words.length - (stats.correctWords)/2}</span>
-              <span className="text-xs md:text-sm text-muted-foreground">Remaining</span>
-            </div>
-            
-            {/* Last spoken word when mic is active */}
-            {micEnabled && lastSpokenWord && (
-              <div className="w-full md:w-auto md:ml-4 rounded-md bg-accent/20 px-3 py-1.5 text-xs md:text-sm text-center md:text-left">
-                <span className="text-muted-foreground">Heard: </span>
-                <span className="font-medium text-accent">"{lastSpokenWord}"</span>
-              </div>
-            )}
-          </div>
-          
-          {/* Progress indicator */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs md:text-sm text-muted-foreground">
-              {currentWordIndex} / {words.length} words
-            </span>
-            <div className="h-1.5 w-24 md:w-32 overflow-hidden rounded-full bg-secondary">
-              <div
-                className="h-full bg-accent transition-all duration-150"
-                style={{ width: `${(currentWordIndex / words.length) * 100}%` }}
-              />
-            </div>
-          </div>
-        </div>
-      </footer>
-    </div>
+        </footer>
+      }
+    />
   )
 }
